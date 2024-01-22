@@ -1,22 +1,41 @@
 const path = require('path');
-const fs = require('fs');
+const fs = require('fs').promises;
 
-function copyDir(src, dist) {
-  fs.mkdir(path.join(__dirname, dist), () => {
-    console.log('Папка-клон создана');
-  });
+async function createFolder(targetPath, name) {
+  const folderStructure = await fs.readdir(targetPath);
+  if (folderStructure.includes(name)) {
+    deleteFiles(path.join(targetPath, name));
+    return;
+  }
 
-  fs.readdir(path.join(__dirname, src), (err, files) => {
-    files.forEach((file) => {
-      fs.copyFile(
-        path.join(__dirname, src, file),
-        path.join(__dirname, dist, file),
-        () => {
-          console.log('Файл скопирован');
-        },
-      );
-    });
-  });
+  await fs.mkdir(path.join(targetPath, name));
 }
 
-copyDir('files', 'files-copy');
+async function deleteFiles(destFolder) {
+  const files = await fs.readdir(destFolder);
+  const deletePromises = files.map((file) => {
+    const filePath = path.join(destFolder, file);
+    return fs.unlink(filePath);
+  });
+  await Promise.all(deletePromises);
+}
+
+async function copyDir(srcFolder, destFolder) {
+  createFolder(__dirname, 'files-copy');
+
+  const folderContents = await fs.readdir(srcFolder);
+
+  for (const name of folderContents) {
+    const stats = await fs.stat(path.join(srcFolder, name));
+
+    if (stats.isDirectory()) {
+      createFolder(destFolder, name);
+      await copyDir(path.join(srcFolder, name), path.join(destFolder, name));
+      continue;
+    }
+
+    await fs.copyFile(path.join(srcFolder, name), path.join(destFolder, name));
+  }
+}
+
+copyDir(path.join(__dirname, 'files'), path.join(__dirname, 'files-copy'));
